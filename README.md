@@ -1,53 +1,62 @@
-# PhaseOS-Interface
-Streamlit-based prototype for Phase-OS Interface
+# Phase-OS Mini (Phases 1 – 4) — Offline Reproducibility Demo
 
-## Overview
-This repository hosts the Streamlit interface for the **Phase-OS** project.
-It provides a modular, offline-ready UI to visualize and control Phase-OS
-simulation results (Phases 1–7) independently of the main Rust engine.
+This folder provides the executable materials accompanying  
+**Yang H.-J. (2025). “RH–VERTEX–LOG Framework: Phases 1 – 4”** (submitted to *PLOS ONE*).
 
-## System Architecture
+---
 
-Windows 11 (Codex)
-  └── PhaseOS-Interface  ← Streamlit UI prototype
-        ├── app_phaseos.py
-        ├── python/phase_plots_plos_complete.py
-        └── requirements.txt
-Ubuntu 24.04 (Air-gap)
-  └── Phase-OS Engine (Rust + Python)
-        └── workspace/runs/
+## 📦 Contents
+| File | Description |
+|------|--------------|
+| `phaseos_mini.html` | Self-contained HTML demo implementing Phases 1–4. Runs fully offline. |
+| `example_tau_sweep.csv` | Example τ-sweep output demonstrating the Phase 3 transition. |
+| `cluster_preview.png` | Example Phase 4 vertex-cluster visualization (exported from the demo). |
 
-## Installation
-```bash
-pip install -r requirements.txt
-streamlit run app_phaseos.py
+---
 
-## Installation
-```bash
-pip install -r requirements.txt
-streamlit run app_phaseos.py
+## 🧮 How to Run (Offline)
+1. **Download** `phaseos_mini.html` from this folder.  
+2. **Open** the file in a modern browser (Chrome, Edge, Firefox, or Safari).  
+3. **Adjust** parameters:
+   - *Prime max* → upper limit for prime generation  
+   - *β* → log-socket cutoff (Phase 2)  
+   - *τ range* → start / end / step for the τ-sweep (Phase 3)  
+   - *Cluster nodes* → number of vertices for Phase 4 preview  
+4. Click **Run Phase 1–3** to compute the τ-sweep.  
+5. Use the **Export τ-sweep CSV** or **Save Plot PNG** buttons to export results.  
+6. For Phase 4, click **Draw Cluster** → **Save Cluster PNG**.  
 
-## Execution Modes
-- **Demo Mode** – runs synthetic datasets (no Rust binary required)
-- **Rust Mode** – connects to `phase-os` CLI if present in PATH or defined in `PHASE_OS_BIN`
+💡 No installation, internet connection, or external library required.  
+Works on both **desktop and mobile** browsers.
 
-## Folder Structure
-phaseos-interface/
-├── app_phaseos.py
-├── python/
-│   └── phase_plots_plos_complete.py
-├── requirements.txt
-└── workspace/
-    └── runs/
+---
 
-## Interface Development Protocol v1.0
-1. Build and test UI in Windows 11 (Codex + GitHub sub-account).
-2. Export via USB.
-3. Test with Phase-OS Engine on Ubuntu (air-gapped).
-4. Return to Codex only if UI changes are needed.
+## 🧭 Phase Coverage
+| Phase | Function | Observable |
+|:------|:----------|:------------|
+| 1 | Prime Gap Ratio ⟨r⟩ | Statistical order parameter for prime gaps |
+| 2 | Log Socket Transform (β) | Low-frequency weighting of prime log spectra |
+| 3 | τ-Sweep Simulation | Critical transition at τ* ≈ 0.145 (Poisson → GOE) |
+| 4 | Vertex Cluster Preview | Emergent spectral coherence visualization |
 
-## License
-MIT License © 2025 Hee-Jong Yang
+---
 
-## Acknowledgment
-Developed as part of the **Phase-OS** research project (RH–VERTEX–LOG Framework).
+## 🧪 Purpose
+The Phase-OS Mini demo offers an openly reproducible environment for verifying  
+the numerical and visual results discussed in the manuscript.  
+It represents the computational backbone of the *RH-VERTEX-LOG* framework  
+before its theoretical extensions (Phases 5–7).  
+
+---
+
+## 🔗 References & Links
+- **Full theoretical framework (Phases 1–7):** [Zenodo DOI: 10.5281/zenodo.17467556](https://doi.org/10.5281/zenodo.17467556)  
+- **Project repository:** [https://github.com/YHJ-2000/PhaseOS_Demo]  
+- **License:** MIT License © 2025 Hee-Jong Yang  
+
+---
+
+> *For peer-reviewers and readers:*  
+> This folder contains everything needed to reproduce the core computational figures  
+> (τ-sweep and vertex cluster).  
+> Results can be regenerated in under 60 seconds on a standard laptop or mobile device.
