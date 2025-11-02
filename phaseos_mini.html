@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase‑OS Mini — Phase 1–4 (Offline)</title>
+<style>
+  :root{--fg:#101114;--bg:#ffffff;--muted:#6b7280;--line:#e5e7eb;--accent:#0b6;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial}
+  header{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+  h1{font-size:18px;margin:0}
+  .badge{font-size:12px;background:#eef8f4;color:#0b6;border:1px solid #cfe;padding:2px 6px;border-radius:6px}
+  .muted{color:var(--muted)}
+  main{display:grid;grid-template-columns:320px 1fr;gap:14px;padding:14px}
+  @media (max-width:920px){ main{grid-template-columns:1fr} }
+  section.card{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff}
+  .stack{display:flex;flex-direction:column;gap:10px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  label{font-size:12px;color:#374151}
+  input,button{font:inherit}
+  input[type=number]{width:100%;padding:8px;border:1px solid #d1d5db;border-radius:8px}
+  button{padding:9px 12px;border-radius:10px;border:1px solid #d1d5db;background:#f9fafb;cursor:pointer}
+  button.primary{background:var(--accent);color:#fff;border-color:transparent}
+  .out{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#f8fafc;border:1px solid var(--line);padding:10px;border-radius:8px;white-space:pre-wrap}
+  svg{width:100%;height:320px;border:1px solid var(--line);border-radius:10px;background:#fff}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<header>
+  <h1>Phase‑OS Mini — Phase 1–4 (Offline)</h1>
+  <span class="badge">Self‑contained HTML</span>
+  <span class="muted">Download → Open in browser (mobile/desktop)</span>
+</header>
+
+<main>
+  <section class="card">
+    <h3>Controls</h3>
+    <div class="stack">
+      <div>
+        <label>Prime max (inclusive)</label>
+        <input id="maxP" type="number" value="50000" min="1000" step="1000">
+      </div>
+      <div class="grid2">
+        <div>
+          <label>β (log‑socket cutoff)</label>
+          <input id="beta" type="number" value="1.125" step="0.025">
+        </div>
+        <div>
+          <label>Cluster nodes (Phase‑4)</label>
+          <input id="nodes" type="number" value="64" min="8" step="1">
+        </div>
+      </div>
+      <div class="grid2">
+        <div>
+          <label>τ min</label>
+          <input id="tauMin" type="number" value="0.10" step="0.005">
+        </div>
+        <div>
+          <label>τ max</label>
+          <input id="tauMax" type="number" value="0.20" step="0.005">
+        </div>
+      </div>
+      <div>
+        <label>τ step</label>
+        <input id="tauStep" type="number" value="0.005" step="0.005">
+      </div>
+      <div class="toolbar">
+        <button class="primary" id="run">Run Phase 1–3</button>
+        <button id="exportCSV">Export τ‑sweep CSV</button>
+      </div>
+      <hr>
+      <div class="toolbar">
+        <button id="drawCluster">Draw Cluster (Phase‑4)</button>
+        <button id="saveClusterPNG">Save Cluster PNG</button>
+      </div>
+      <div class="muted" style="font-size:12px">
+        Gap‑ratio: rᵢ = min(gᵢ,gᵢ₋₁)/max(gᵢ,gᵢ₋₁). τ‑sweep recomputes ⟨r⟩ with log‑socket power cue. τ* marker at 0.145.
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>Results</h3>
+    <div class="grid2">
+      <div>
+        <h4>τ‑sweep ⟨r⟩(τ) — Phase‑3</h4>
+        <div class="toolbar">
+          <button id="savePlotPNG">Save Plot PNG</button>
+        </div>
+        <svg id="plot" viewBox="0 0 640 360" preserveAspectRatio="none"></svg>
+      </div>
+      <div>
+        <h4>Summary</h4>
+        <div id="summary" class="out"></div>
+      </div>
+    </div>
+    <h4 style="margin-top:16px">Vertex Cluster Preview — Phase‑4</h4>
+    <svg id="cluster" viewBox="0 0 640 360" preserveAspectRatio="xMidYMid meet"></svg>
+  </section>
+</main>
+
+<script>
+// ====== Phase 1: primes & gap ratio ======
+function sieve(maxP){
+  const S = new Uint8Array(maxP+1);
+  const primes = [];
+  for(let i=2;i<=maxP;i++){
+    if(!S[i]){
+      primes.push(i);
+      if(i*i<=maxP){
+        for(let j=i*i;j<=maxP;j+=i) S[j]=1;
+      }
+    }
+  }
+  return primes;
+}
+function gapRatio(primes){
+  const g=[];
+  for(let i=0;i<primes.length-1;i++) g.push(primes[i+1]-primes[i]);
+  const rs=[];
+  for(let i=1;i<g.length;i++){
+    const a=g[i], b=g[i-1];
+    rs.push(Math.min(a,b)/Math.max(a,b));
+  }
+  const mean = rs.reduce((s,x)=>s+x,0)/rs.length;
+  const sd = Math.sqrt(rs.reduce((s,x)=>s+(x-mean)**2,0)/(rs.length-1));
+  return {mean, sd, n: rs.length};
+}
+
+// ====== Phase 2: log-socket power cue ======
+function logSocketPower(primes, tau, beta){
+  const mmax = Math.floor(Math.max(1, beta));
+  let re=0, im=0;
+  for(const p of primes){
+    const lp = Math.log(p);
+    for(let m=1;m<=mmax;m++){
+      const w = (lp/m)*Math.pow(p, -m/2);
+      const a = 2*Math.PI*tau*m*lp;
+      re += w*Math.cos(a);
+      im += w*Math.sin(a);
+    }
+  }
+  return re*re + im*im;
+}
+
+// Blend Poisson↔GOE using power cue (toy mapping for preview)
+function mapToR(baseR, power){
+  const POIS=0.386, GOE=0.536;
+  const x = Math.tanh(Math.sqrt(power)*1e-6);
+  return baseR*(1-0.5*x) + GOE*(0.5*x);
+}
+
+// ====== helpers ======
+function linspace(a,b,step){const out=[];for(let x=a;x<=b+1e-12;x+=step) out.push(+x.toFixed(3));return out;}
+function toCSV(rows){return rows.map(r=>r.map(x=>String(x)).join(",")).join("\n");}
+
+// ====== plotting ======
+function renderPlot(svg, series, x0,x1,y0,y1){
+  const W=640,H=360,pad=46;
+  svg.innerHTML="";
+  const ns=svg.namespaceURI;
+  function xt(t){return pad + (t-x0)/(x1-x0)*(W-2*pad)}
+  function yt(v){return H-pad - (v-y0)/(y1-y0)*(H-2*pad)}
+
+  // axes
+  const ax=document.createElementNS(ns,"path");
+  ax.setAttribute("d",`M ${pad},${H-pad} H ${W-pad} M ${pad},${H-pad} V ${pad}`);
+  ax.setAttribute("stroke","#cbd5e1"); ax.setAttribute("fill","none"); svg.appendChild(ax);
+
+  // grid + tick labels
+  for(let k=0;k<5;k++){
+    const tx = x0 + (x1-x0)*k/4;
+    const gx = document.createElementNS(ns,"line");
+    gx.setAttribute("x1",xt(tx)); gx.setAttribute("y1",pad);
+    gx.setAttribute("x2",xt(tx)); gx.setAttribute("y2",H-pad);
+    gx.setAttribute("stroke","#eef2f7"); svg.appendChild(gx);
+    const lbl=document.createElementNS(ns,"text");
+    lbl.setAttribute("x",xt(tx)); lbl.setAttribute("y",H-12);
+    lbl.setAttribute("text-anchor","middle"); lbl.setAttribute("font-size","12");
+    lbl.textContent=tx.toFixed(3); svg.appendChild(lbl);
+  }
+  const yTicks=[0.36,0.40,0.44,0.48,0.52,0.56];
+  for(const ty of yTicks){
+    const gy=document.createElementNS(ns,"line");
+    gy.setAttribute("x1",pad); gy.setAttribute("y1",yt(ty));
+    gy.setAttribute("x2",W-pad); gy.setAttribute("y2",yt(ty));
+    gy.setAttribute("stroke","#eef2f7"); svg.appendChild(gy);
+    const lbl=document.createElementNS(ns,"text");
+    lbl.setAttribute("x",26); lbl.setAttribute("y",yt(ty)+4);
+    lbl.setAttribute("font-size","12"); lbl.textContent=ty.toFixed(2); svg.appendChild(lbl);
+  }
+  // baselines
+  const lines=[[0.386,"#ef4444","4,4"],[0.536,"#10b981","6,3"]];
+  for(const [val,col,dash] of lines){
+    const l=document.createElementNS(ns,"line");
+    l.setAttribute("x1",pad); l.setAttribute("x2",W-pad);
+    l.setAttribute("y1",yt(val)); l.setAttribute("y2",yt(val));
+    l.setAttribute("stroke",col); l.setAttribute("stroke-dasharray",dash); svg.appendChild(l);
+  }
+  // tau*
+  const tauStar=0.145;
+  const ts=document.createElementNS(ns,"line");
+  ts.setAttribute("x1",xt(tauStar)); ts.setAttribute("x2",xt(tauStar));
+  ts.setAttribute("y1",pad); ts.setAttribute("y2",H-pad);
+  ts.setAttribute("stroke","#111827"); ts.setAttribute("stroke-dasharray","3,3"); svg.appendChild(ts);
+
+  // path
+  let d="";
+  series.forEach(([t,r],i)=>{ d += (i?" L ":"M ")+xt(t)+","+yt(r); });
+  const p=document.createElementNS(ns,"path");
+  p.setAttribute("d",d); p.setAttribute("stroke","#0b6"); p.setAttribute("fill","none"); p.setAttribute("stroke-width","2"); svg.appendChild(p);
+}
+
+// ====== SVG → PNG save ======
+function saveSVGasPNG(svgEl, filename="plot.png", scale=2){
+  const xml = new XMLSerializer().serializeToString(svgEl);
+  const svg64 = btoa(unescape(encodeURIComponent(xml)));
+  const img = new Image();
+  const bbox = svgEl.viewBox.baseVal;
+  const W = (bbox && bbox.width) ? bbox.width : svgEl.clientWidth || 640;
+  const H = (bbox && bbox.height) ? bbox.height : svgEl.clientHeight || 360;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(W*scale);
+  canvas.height = Math.round(H*scale);
+  const ctx = canvas.getContext("2d");
+  img.onload = () => {
+    ctx.setTransform(scale,0,0,scale,0,0);
+    ctx.drawImage(img,0,0,W,H);
+    const a = document.createElement("a");
+    a.download = filename;
+    a.href = canvas.toDataURL("image/png");
+    a.click();
+  };
+  img.src = "data:image/svg+xml;base64,"+svg64;
+}
+
+// ====== Phase‑4: simple vertex cluster preview ======
+function drawCluster(svg, N){
+  const ns=svg.namespaceURI; svg.innerHTML="";
+  const W=640,H=360,cx=W/2,cy=H/2,R=Math.min(W,H)*0.38;
+  // nodes on circle
+  const nodes=[];
+  for(let i=0;i<N;i++){
+    const th = 2*Math.PI*i/N;
+    nodes.push({x:cx+R*Math.cos(th), y:cy+R*Math.sin(th)});
+  }
+  // edges with distance‑weighted probability
+  const P = (i,j)=>{
+    const d = Math.min(Math.abs(i-j), N-Math.abs(i-j));
+    const p = Math.exp(-d/8); // nearer nodes more likely
+    return Math.random()<p;
+  };
+  // draw edges
+  for(let i=0;i<N;i++){
+    for(let j=i+1;j<N;j++){
+      if(P(i,j)){
+        const e=document.createElementNS(ns,"line");
+        e.setAttribute("x1",nodes[i].x); e.setAttribute("y1",nodes[i].y);
+        e.setAttribute("x2",nodes[j].x); e.setAttribute("y2",nodes[j].y);
+        e.setAttribute("stroke","#cbd5e1"); e.setAttribute("stroke-width","1");
+        svg.appendChild(e);
+      }
+    }
+  }
+  // draw nodes
+  for(const nd of nodes){
+    const c=document.createElementNS(ns,"circle");
+    c.setAttribute("cx",nd.x); c.setAttribute("cy",nd.y);
+    c.setAttribute("r",3.2); c.setAttribute("fill","#0b6");
+    svg.appendChild(c);
+  }
+}
+
+// ====== Wire UI ======
+const el = (id)=>document.getElementById(id);
+const maxP=el("maxP"), beta=el("beta"), nodes=el("nodes");
+const tauMin=el("tauMin"), tauMax=el("tauMax"), tauStep=el("tauStep");
+const run=el("run"), exportCSV=el("exportCSV");
+const drawBtn=el("drawCluster"), saveClusterPNG=el("saveClusterPNG");
+const savePlotPNG=el("savePlotPNG");
+const plot=el("plot"), cluster=el("cluster"), summary=el("summary");
+
+let lastRows=[];
+
+run.onclick = () => {
+  const Pmax = Math.max(2000, Math.floor(+maxP.value));
+  const b = +beta.value;
+  const primes = sieve(Pmax);
+  const base = gapRatio(primes);
+  const taus = linspace(+tauMin.value, +tauMax.value, +tauStep.value);
+  const rows = [["tau","r_mean","power","Pmax","beta"]];
+  const series=[];
+  for(const t of taus){
+    const pow = logSocketPower(primes, t, b);
+    const r = mapToR(base.mean, pow);
+    series.push([t, r]);
+    rows.push([t.toFixed(3), r.toFixed(6), pow.toFixed(3), Pmax, b]);
+  }
+  lastRows=rows;
+  renderPlot(plot, series, taus[0], taus[taus.length-1], 0.36, 0.56);
+  summary.textContent =
+`Primes ≤ ${Pmax} (n=${primes.length})
+⟨r⟩ base = ${base.mean.toFixed(6)} ± ${base.sd.toFixed(6)}  (n=${base.n})
+τ grid = [${taus[0]} … ${taus[taus.length-1]}], step ${+tauStep.value}
+β = ${b}
+(Phase‑3 preview) τ* ≈ 0.145 (marker)`;
+};
+
+exportCSV.onclick = () => {
+  if(!lastRows.length){ alert("Run Phase 1–3 first."); return; }
+  const blob = new Blob([toCSV(lastRows)], {type:"text/csv"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "tau_sweep.csv";
+  a.click();
+};
+
+drawBtn.onclick = () => {
+  const N = Math.max(8, Math.floor(+nodes.value));
+  drawCluster(cluster, N);
+};
+
+saveClusterPNG.onclick = () => saveSVGasPNG(cluster, "cluster_preview.png", 2);
+savePlotPNG.onclick = () => saveSVGasPNG(plot, "tau_plot.png", 2);
+
+// Auto‑init small run for quick preview
+setTimeout(()=>run.click(), 100);
+</script>
+</body>
+</html>
